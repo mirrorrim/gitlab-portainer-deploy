@@ -36,10 +36,20 @@ def deploy(
         "-e",
         help="A list of environment variables used during stack deployment",
     ),
+    use_env: bool = typer.Option(
+        False, help="Use current environment variables. Be careful, use prefixes"
+    ),
+    prefixes: list[str] = typer.Option(
+        None,
+        "--prefix",
+        "-p",
+        help="A list of prefixes that used to export variables from current environment",
+    ),
 ):
     api_url = URL(portainer_url) / "api"
 
     stack_env = _get_env_variables(env_var)
+    stack_env += get_current_env_variables(use_env, prefixes)
     headers = _get_auth_token(api_url, portainer_username, portainer_password)
     stack_file_content = _get_stackfile_content(stack_file)
     stack = _get_existing_stack(api_url, headers, stack_name)
@@ -68,7 +78,7 @@ def deploy(
         _update_stack(api_url, headers, stack_id, endpoint_id, stack_file_content, stack_env)
 
 
-def _get_env_variables(env_var: list[str]):
+def _get_env_variables(env_var: list[str]) -> list[dict[str, str]]:
     stack_env = []
     if env_var:
         typer.echo("Environment variables for stack file:")
@@ -77,6 +87,21 @@ def _get_env_variables(env_var: list[str]):
             stack_env.append({"name": name, "value": value})
     else:
         typer.echo("No environment variables for stackfile.")
+    return stack_env
+
+
+def get_current_env_variables(
+    use_env: bool, prefixes: list[str]
+) -> list[dict[str, str]]:
+    if not use_env:
+        return []
+    if not prefixes:
+        return [{"name": name, "value": value} for name, value in os.environ.items()]
+    stack_env = []
+    for name, value in os.environ.items():
+        for prefix in prefixes:
+            if name.startswith(prefix):
+                stack_env.append({"name": name, "value": value})
     return stack_env
 
 
@@ -197,7 +222,10 @@ def _create_stack(
     )
     typer.secho("done", fg=typer.colors.BRIGHT_GREEN)
     if resp.status_code != HTTPStatus.OK:
-        typer.secho(f"Deployment failed:\n{json.dumps(resp.json(), indent=2, ensure_ascii=False)}", fg=typer.colors.RED)
+        typer.secho(
+            f"Deployment failed:\n{json.dumps(resp.json(), indent=2, ensure_ascii=False)}",
+            fg=typer.colors.RED,
+        )
         sys.exit(1)
 
 
@@ -223,5 +251,8 @@ def _update_stack(
     )
     typer.secho("done", fg=typer.colors.BRIGHT_GREEN)
     if resp.status_code != HTTPStatus.OK:
-        typer.secho(f"Deployment failed:\n{json.dumps(resp.json(), indent=2, ensure_ascii=False)}", fg=typer.colors.RED)
+        typer.secho(
+            f"Deployment failed:\n{json.dumps(resp.json(), indent=2, ensure_ascii=False)}",
+            fg=typer.colors.RED,
+        )
         sys.exit(1)
