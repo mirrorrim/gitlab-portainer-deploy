@@ -46,4 +46,13 @@ Options:
 
   -e, --env-var TEXT              A list of environment variables used during
                                   stack deployment
+
+  --use-env / --no-use-env        Use current environment variables. Be
+                                  careful, use prefixes  [default: False]
+
+  --skip-builtin / --no-skip-builtin
+                                  Skip built-in CI variables  [default: True]
+  -p, --prefix TEXT               A list of prefixes that used to export
+                                  variables from current environment
+
 ```

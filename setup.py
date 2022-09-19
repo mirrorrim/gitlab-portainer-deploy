@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="gitlab-portainer-deploy",
-    version="0.2",
+    version="0.3",
     packages=["deploy"],
     zip_safe=False,
     install_requires=[

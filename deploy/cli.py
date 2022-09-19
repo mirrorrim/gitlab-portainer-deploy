@@ -9,6 +9,9 @@ from yarl import URL
 
 app = typer.Typer()
 
+BUILTIN_VAR_PREFIXES = {"CI_", "FF_", "GITLAB_", "DOCKER_"}
+BUILTIN_VARS = {"PATH", "PWD", "OLDPWD", "HOME", "SHLVL", "HOSTNAME", "CI"}
+
 
 @app.command("deploy")
 def deploy(
@@ -39,6 +42,7 @@ def deploy(
     use_env: bool = typer.Option(
         False, help="Use current environment variables. Be careful, use prefixes"
     ),
+    skip_builtin: bool = typer.Option(True, help="Skip built-in CI variables"),
     prefixes: list[str] = typer.Option(
         None,
         "--prefix",
@@ -49,7 +53,7 @@ def deploy(
     api_url = URL(portainer_url) / "api"
 
     stack_env = _get_env_variables(env_var)
-    stack_env += get_current_env_variables(use_env, prefixes)
+    stack_env += _get_current_env_variables(use_env, prefixes, skip_builtin)
     headers = _get_auth_token(api_url, portainer_username, portainer_password)
     stack_file_content = _get_stackfile_content(stack_file)
     stack = _get_existing_stack(api_url, headers, stack_name)
@@ -90,19 +94,33 @@ def _get_env_variables(env_var: list[str]) -> list[dict[str, str]]:
     return stack_env
 
 
-def get_current_env_variables(
-    use_env: bool, prefixes: list[str]
+def _get_current_env_variables(
+    use_env: bool, prefixes: list[str], skip_builtin: bool
 ) -> list[dict[str, str]]:
     if not use_env:
         return []
+    env_vars = _get_env_vars(skip_builtin)
     if not prefixes:
-        return [{"name": name, "value": value} for name, value in os.environ.items()]
+        return [{"name": name, "value": value} for name, value in env_vars.items()]
     stack_env = []
-    for name, value in os.environ.items():
+    for name, value in env_vars.items():
         for prefix in prefixes:
             if name.startswith(prefix):
                 stack_env.append({"name": name, "value": value})
     return stack_env
+
+
+def _get_env_vars(skip_builtin: bool) -> dict[str, str]:
+    if not skip_builtin:
+        return dict(os.environ)
+    variables = {}
+    for name, value in os.environ.items():
+        if name in BUILTIN_VARS:
+            continue
+        for prefix in BUILTIN_VAR_PREFIXES:
+            if not name.startswith(prefix):
+                variables[name] = value
+    return variables
 
 
 def _get_auth_token(api_url: URL, username: str, password: str):
